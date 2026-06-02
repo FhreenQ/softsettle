@@ -313,6 +313,16 @@ select:focus {
   margin: 0;
 }
 
+.group-card-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.group-card-actions .command-button:only-child {
+  grid-column: 1 / -1;
+}
+
 .member-line {
   color: var(--muted);
   min-height: 44px;
@@ -640,6 +650,19 @@ select:focus {
 .secondary:hover,
 .secondary:focus-visible {
   border-color: var(--primary);
+  outline: none;
+}
+
+.command-button.danger {
+  border: 1px solid #e8b2aa;
+  background: var(--accent-soft);
+  color: #9d241a;
+}
+
+.command-button.danger:hover,
+.command-button.danger:focus-visible {
+  border-color: #b73228;
+  background: #f4d7d1;
   outline: none;
 }
 

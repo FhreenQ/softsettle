@@ -268,6 +268,7 @@ function icon(name) {
     logout: '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>',
     database: '<svg aria-hidden="true" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>',
     users: '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    trash: '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg>',
     back: '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>'
   };
 
@@ -521,6 +522,22 @@ function renderGroups() {
       });
     });
   });
+
+  document.querySelectorAll("[data-delete-group]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const groupId = Number(button.dataset.deleteGroup);
+      const group = state.groups.find((item) => item.id === groupId);
+      if (!window.confirm(`Delete "${group?.name || "this group"}" and all of its expenses?`)) {
+        return;
+      }
+
+      await runAction(async () => {
+        const response = await api(`/api/groups/${groupId}`, { method: "DELETE" });
+        state.groups = response.groups || [];
+        state.notice = "Group deleted.";
+      });
+    });
+  });
 }
 
 function renderCreateGroupPanel() {
@@ -584,7 +601,19 @@ function renderGroupCard(group) {
       </div>
       <strong class="${statusClass}">${escapeHtml(statusText)}</strong>
       <p class="member-line">${escapeHtml(group.members.slice(0, 5).join(", "))}</p>
-      <button class="command-button primary" type="button" data-open-group="${group.id}">Open group</button>
+      <div class="group-card-actions">
+        <button class="command-button primary" type="button" data-open-group="${group.id}">Open group</button>
+        ${
+          group.isAdmin
+            ? `
+              <button class="command-button danger" type="button" data-delete-group="${group.id}" ${state.busy ? "disabled" : ""}>
+                ${icon("trash")}
+                Delete
+              </button>
+            `
+            : ""
+        }
+      </div>
     </article>
   `;
 }
@@ -616,7 +645,6 @@ function renderAppHeader(title, backButton = "") {
 }
 
 function renderWorkspace() {
-  const balances = calculateBalances(state.people, state.expenses, state.payments);
   const settlements = calculateDirectSettlements(state.people, state.expenses, state.payments);
   const personalSettlements = getPersonalSettlements(settlements);
 
@@ -661,7 +689,7 @@ function renderWorkspace() {
 
     ${state.error ? `<div class="notice error">${escapeHtml(state.error)}</div>` : ""}
     ${state.notice ? `<div class="notice success">${escapeHtml(state.notice)}</div>` : ""}
-    ${renderNetSummary(balances, personalSettlements)}
+    ${renderNetSummary(personalSettlements)}
 
     <main class="workspace-grid">
       <section class="left-stack" aria-label="Expense setup">
@@ -759,13 +787,15 @@ function renderPaymentList(title, settlements, actionLabel) {
   `;
 }
 
-function renderNetSummary(balances, settlements) {
-  const balance = state.currentUserPersonId ? balances[state.currentUserPersonId] || 0 : 0;
-  const isSettled = Math.abs(balance) < 1;
-  const isPositive = balance >= 0;
+function renderNetSummary(settlements) {
+  const totals = getPersonalDirectionTotals(settlements);
+  const isSettled = totals.owe < 1 && totals.owed < 1;
+  const isPositive = totals.owed > totals.owe;
   const className = isSettled ? "settled" : isPositive ? "positive" : "negative";
   const title = isSettled ? "You are settled in this group" : isPositive ? "People owe you in total" : "You need to pay in total";
-  const amount = isSettled ? formatCurrency(0, state.currency) : formatCurrency(Math.abs(balance), state.currency);
+  const amount = isSettled
+    ? formatCurrency(0, state.currency)
+    : formatCurrency(isPositive ? totals.owed : totals.owe, state.currency);
   const personalLines = settlements
     .slice(0, 3)
     .map((settlement) =>
@@ -783,7 +813,7 @@ function renderNetSummary(balances, settlements) {
       </div>
       <div class="net-actions">
         <strong>${amount}</strong>
-        <button class="command-button primary" id="open-pay-page" type="button" ${isSettled || state.busy ? "disabled" : ""}>
+        <button class="command-button primary" id="open-pay-page" type="button" ${!settlements.length || state.busy ? "disabled" : ""}>
           ${icon("card")}
           Pay
         </button>
@@ -1758,6 +1788,20 @@ function getPersonalSettlements(settlements) {
       const name = direction === "owe" ? settlement.toName : settlement.fromName;
       return { ...settlement, direction, name };
     });
+}
+
+function getPersonalDirectionTotals(settlements) {
+  return settlements.reduce(
+    (totals, settlement) => {
+      if (settlement.direction === "owe") {
+        totals.owe += Number(settlement.amount) || 0;
+      } else if (settlement.direction === "owed") {
+        totals.owed += Number(settlement.amount) || 0;
+      }
+      return totals;
+    },
+    { owe: 0, owed: 0 }
+  );
 }
 
 function findPerson(id) {

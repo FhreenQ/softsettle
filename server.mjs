@@ -289,6 +289,22 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (req.method === "DELETE" && groupStateMatch) {
+    const trip = requireGroup(session.user.id, Number(groupStateMatch[1]));
+    if (!trip) {
+      sendJson(res, 404, { error: "Group not found for this account." });
+      return;
+    }
+    if (!isTripOwner(session.user.id, trip.id)) {
+      sendJson(res, 403, { error: "Only the group admin can delete this group." });
+      return;
+    }
+
+    db.prepare("DELETE FROM trips WHERE id = ?").run(trip.id);
+    sendJson(res, 200, { groups: getGroups(session.user.id) });
+    return;
+  }
+
   if (req.method === "PUT" && groupStateMatch) {
     const trip = requireGroup(session.user.id, Number(groupStateMatch[1]));
     if (!trip) {
@@ -691,7 +707,8 @@ function getGroups(userId) {
         memberCount: state.people.length,
         expenseCount: state.expenses.length,
         members: state.people.map((person) => person.name),
-        currentBalance
+        currentBalance,
+        isAdmin: state.isAdmin
       };
     });
 }
@@ -776,8 +793,30 @@ function getCurrentUserBalance(groupState) {
   if (!groupState.currentUserPersonId) {
     return 0;
   }
-  const balances = calculateBalances(groupState.people, groupState.expenses, groupState.payments);
-  return balances[groupState.currentUserPersonId] || 0;
+  const totals = getPersonalDirectionTotals(
+    groupState.currentUserPersonId,
+    calculateDirectSettlements(groupState.people, groupState.expenses, groupState.payments)
+  );
+
+  if (totals.owe < 1 && totals.owed < 1) {
+    return 0;
+  }
+
+  return totals.owed > totals.owe ? totals.owed : -totals.owe;
+}
+
+function getPersonalDirectionTotals(personId, settlements) {
+  return settlements.reduce((totals, settlement) => {
+    if (settlement.fromId === personId) {
+      totals.owe += Number(settlement.amount) || 0;
+    }
+
+    if (settlement.toId === personId) {
+      totals.owed += Number(settlement.amount) || 0;
+    }
+
+    return totals;
+  }, { owe: 0, owed: 0 });
 }
 
 function calculateBalances(people, expenses, payments = []) {
