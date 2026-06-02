@@ -313,6 +313,11 @@ select:focus {
   margin: 0;
 }
 
+.group-status {
+  display: grid;
+  gap: 4px;
+}
+
 .group-card-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -332,7 +337,7 @@ select:focus {
   margin-bottom: 16px;
 }
 
-.net-summary strong {
+.net-actions > strong {
   justify-self: end;
   font-size: clamp(2rem, 5vw, 4rem);
   line-height: 1;
@@ -351,6 +356,24 @@ select:focus {
   justify-items: end;
 }
 
+.dual-total {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  text-align: right;
+}
+
+.dual-total span {
+  display: block;
+  font-weight: 850;
+}
+
+.dual-total strong {
+  display: block;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  line-height: 1.05;
+}
+
 .net-actions .command-button {
   min-width: 140px;
 }
@@ -363,6 +386,11 @@ select:focus {
 .net-summary.negative {
   border-color: #edb3aa;
   background: #fff3f0;
+}
+
+.net-summary.mixed {
+  border-color: #d6c8a7;
+  background: #fffaf0;
 }
 
 .net-summary.settled {

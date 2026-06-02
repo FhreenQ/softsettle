@@ -699,7 +699,8 @@ function getGroups(userId) {
     .all(userId)
     .map((group) => {
       const state = getGroupState(userId, group.id);
-      const currentBalance = getCurrentUserBalance(state);
+      const totals = getCurrentUserSettlementTotals(state);
+      const currentBalance = totals.owed > totals.owe ? totals.owed : -totals.owe;
       return {
         id: group.id,
         name: group.name,
@@ -708,6 +709,8 @@ function getGroups(userId) {
         expenseCount: state.expenses.length,
         members: state.people.map((person) => person.name),
         currentBalance,
+        oweAmount: totals.owe,
+        owedAmount: totals.owed,
         isAdmin: state.isAdmin
       };
     });
@@ -789,20 +792,15 @@ function getGroupState(userId, tripId) {
   };
 }
 
-function getCurrentUserBalance(groupState) {
+function getCurrentUserSettlementTotals(groupState) {
   if (!groupState.currentUserPersonId) {
-    return 0;
+    return { owe: 0, owed: 0 };
   }
-  const totals = getPersonalDirectionTotals(
+
+  return getPersonalDirectionTotals(
     groupState.currentUserPersonId,
     calculateDirectSettlements(groupState.people, groupState.expenses, groupState.payments)
   );
-
-  if (totals.owe < 1 && totals.owed < 1) {
-    return 0;
-  }
-
-  return totals.owed > totals.owe ? totals.owed : -totals.owe;
 }
 
 function getPersonalDirectionTotals(personId, settlements) {

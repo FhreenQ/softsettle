@@ -582,13 +582,23 @@ function renderCreateGroupPanel() {
 
 function renderGroupCard(group) {
   const balance = Number(group.currentBalance) || 0;
-  const statusClass = balance >= 0 ? "positive" : "negative";
-  const statusText =
-    Math.abs(balance) < 1
-      ? "You are settled"
-      : balance > 0
-        ? `You are owed ${formatCurrency(balance, group.currency)}`
-        : `You owe ${formatCurrency(Math.abs(balance), group.currency)}`;
+  const oweAmount = Number(group.oweAmount ?? (balance < 0 ? Math.abs(balance) : 0)) || 0;
+  const owedAmount = Number(group.owedAmount ?? (balance > 0 ? balance : 0)) || 0;
+  const hasOwe = oweAmount >= 1;
+  const hasOwed = owedAmount >= 1;
+  const statusMarkup =
+    hasOwe && hasOwed
+      ? `
+        <div class="group-status mixed">
+          <strong class="positive">You are owed ${formatCurrency(owedAmount, group.currency)}</strong>
+          <strong class="negative">You owe ${formatCurrency(oweAmount, group.currency)}</strong>
+        </div>
+      `
+      : hasOwed
+        ? `<strong class="positive">You are owed ${formatCurrency(owedAmount, group.currency)}</strong>`
+        : hasOwe
+          ? `<strong class="negative">You owe ${formatCurrency(oweAmount, group.currency)}</strong>`
+          : `<strong class="positive">You are settled</strong>`;
 
   return `
     <article class="group-card">
@@ -599,7 +609,7 @@ function renderGroupCard(group) {
           <p>${group.memberCount} members · ${group.expenseCount} expenses</p>
         </div>
       </div>
-      <strong class="${statusClass}">${escapeHtml(statusText)}</strong>
+      ${statusMarkup}
       <p class="member-line">${escapeHtml(group.members.slice(0, 5).join(", "))}</p>
       <div class="group-card-actions">
         <button class="command-button primary" type="button" data-open-group="${group.id}">Open group</button>
@@ -790,12 +800,25 @@ function renderPaymentList(title, settlements, actionLabel) {
 function renderNetSummary(settlements) {
   const totals = getPersonalDirectionTotals(settlements);
   const isSettled = totals.owe < 1 && totals.owed < 1;
-  const isPositive = totals.owed > totals.owe;
-  const className = isSettled ? "settled" : isPositive ? "positive" : "negative";
-  const title = isSettled ? "You are settled in this group" : isPositive ? "People owe you in total" : "You need to pay in total";
-  const amount = isSettled
-    ? formatCurrency(0, state.currency)
-    : formatCurrency(isPositive ? totals.owed : totals.owe, state.currency);
+  const hasOwe = totals.owe >= 1;
+  const hasOwed = totals.owed >= 1;
+  const className = isSettled ? "settled" : hasOwe && hasOwed ? "mixed" : hasOwed ? "positive" : "negative";
+  const title = isSettled
+    ? "You are settled in this group"
+    : hasOwe && hasOwed
+      ? "You have open payments in this group"
+      : hasOwed
+        ? "People owe you in total"
+        : "You need to pay in total";
+  const amountMarkup =
+    hasOwe && hasOwed
+      ? `
+        <div class="dual-total">
+          <span class="positive">To receive <strong>${formatCurrency(totals.owed, state.currency)}</strong></span>
+          <span class="negative">To pay <strong>${formatCurrency(totals.owe, state.currency)}</strong></span>
+        </div>
+      `
+      : `<strong>${formatCurrency(isSettled ? 0 : hasOwed ? totals.owed : totals.owe, state.currency)}</strong>`;
   const personalLines = settlements
     .slice(0, 3)
     .map((settlement) =>
@@ -812,7 +835,7 @@ function renderNetSummary(settlements) {
         <p>${escapeHtml(personalLines.length ? personalLines.join(" · ") : "No pending person-to-person payments.")}</p>
       </div>
       <div class="net-actions">
-        <strong>${amount}</strong>
+        ${amountMarkup}
         <button class="command-button primary" id="open-pay-page" type="button" ${!settlements.length || state.busy ? "disabled" : ""}>
           ${icon("card")}
           Pay
