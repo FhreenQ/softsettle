@@ -3,9 +3,11 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "24.14.1"
+  },
   "scripts": {
     "start": "node server.mjs",
     "test": "node tests/settlement.test.mjs"
   }
 }
-
