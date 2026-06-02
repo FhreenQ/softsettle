@@ -1,0 +1,6 @@
+data/*.sqlite
+data/*.sqlite-*
+server.log
+server-error.log
+.verification/
+
